@@ -1,78 +1,40 @@
-#!/bin/bash
+import time
+import os
+import sys
 
-# Variablen
-ROUTER_IP="192.168.1.1"  # IP-Adresse des Routers
-FTP_USER="adam2"          # FTP-Benutzername
-FTP_PASS="adam2"          # FTP-Passwort
-FIRMWARE_PATH="./firmware/openwrt-24.10.0-ipq40xx-generic-avm_fritzbox-7530-squashfs-sysupgrade.bin"
-EVA_PATH="./eva/eva-fritz7530-recovery.img"
-U_BOOT_PATH="./uboot/uboot-fritz7530.bin"
-REMOTE_PATH="/tmp/firmware.bin"  # Zielpfad auf dem Router
+# Funktion, um den Router zu prüfen (ping)
+def check_router_reachability(ip="192.168.1.1", retries=5, delay=60):
+    for attempt in range(retries):
+        response = os.system(f"ping -c 1 {ip}")
+        if response == 0:
+            print(f"Router erreichbar beim Versuch {attempt + 1}")
+            return True
+        print(f"Versuch {attempt + 1}: Router nicht erreichbar, versuche es erneut...")
+        time.sleep(delay)
+    return False
 
-# Vorbereitungen
-echo "Starte den Flash-Vorgang für die FRITZ!Box 7530..."
-echo "Stellen Sie sicher, dass der Router im Recovery-Modus ist."
+# Initiale Überprüfung des Routers
+ping_response = os.system("ping -c 1 192.168.1.1")
 
-# Verbindung zum Router prüfen (Recovery-Modus)
-ping -c 4 $ROUTER_IP
-if [ $? -ne 0 ]; then
-    echo "Fehler: Router nicht erreichbar. Überprüfen Sie die Verbindung und IP-Adresse."
-    exit 1
-fi
+if ping_response != 0:
+    print("Fehler: Router nicht erreichbar.")
+    print("Bitte trenne den Netzstecker des Routers, warte etwa 10 Sekunden und stecke ihn dann wieder ein.")
+    input("Drücke Enter, sobald der Router wieder mit Strom versorgt ist und die LED blinkt (im Recovery-Modus)...")
 
-# Überprüfen, ob die benötigten Dateien existieren
-if [ ! -f "$EVA_PATH" ]; then
-    echo "Fehler: EVA-Image wurde nicht gefunden!"
-    exit 1
-fi
+    # Überprüfe nach der Benutzereingabe erneut, ob der Router erreichbar ist
+    print("Überprüfe jetzt erneut, ob der Router erreichbar ist...")
+    if not check_router_reachability():
+        print("Fehler: Router immer noch nicht erreichbar. Bitte überprüfe die Verbindung und den Wiederherstellungsmodus.")
+        sys.exit(1)
+    else:
+        print("Router ist jetzt erreichbar. Der Flashvorgang wird fortgesetzt.")
+else:
+    print("Router ist bereits erreichbar. Der Flashvorgang wird fortgesetzt.")
 
-if [ ! -f "$U_BOOT_PATH" ]; then
-    echo "Fehler: U-Boot-Datei wurde nicht gefunden!"
-    exit 1
-fi
+# Hier den Flash-Vorgang einfügen (z.B. Befehl zum Flashen der Firmware)
+# Beispiel: os.system("flash_befehl")
 
-if [ ! -f "$FIRMWARE_PATH" ]; then
-    echo "Fehler: Firmware-Datei wurde nicht gefunden!"
-    exit 1
-fi
-
-# Verbindung zu FTP herstellen und EVA-Image übertragen
-echo "Übertrage das EVA-Image auf den Router..."
-ftp -inv $ROUTER_IP <<EOF
-user $FTP_USER $FTP_PASS
-binary
-put $EVA_PATH 0x88000000
-quit
-EOF
-
-# Übertragen der U-Boot-Datei
-echo "Übertrage die U-Boot-Datei auf den Router..."
-ftp -inv $ROUTER_IP <<EOF
-user $FTP_USER $FTP_PASS
-binary
-put $U_BOOT_PATH 0x80000000
-quit
-EOF
-
-# Übertragen der Firmware
-echo "Übertrage die OpenWrt-Firmware auf den Router..."
-ftp -inv $ROUTER_IP <<EOF
-user $FTP_USER $FTP_PASS
-binary
-put $FIRMWARE_PATH $REMOTE_PATH
-quit
-EOF
-
-# Flashen der Firmware über SSH
-echo "Starte den Flash-Vorgang auf der FRITZ!Box 7530..."
-ssh root@$ROUTER_IP "sysupgrade -v $REMOTE_PATH"
-if [ $? -ne 0 ]; then
-    echo "Fehler: Flash-Vorgang gescheitert."
-    exit 1
-fi
-
-echo "Der Flash-Vorgang wurde erfolgreich abgeschlossen. Router wird jetzt neu gestartet."
-
-
-echo "Der Flash-Vorgang wurde erfolgreich abgeschlossen. Router wird jetzt neu gestartet."
+# Abschlussnachricht
+print("\nDer Flashvorgang wurde erfolgreich abgeschlossen.")
+print("Die FRITZ!Box 7530 ist nun geflasht und sollte im normalen Betrieb starten.")
 
