@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 
-# Funktionen
+# Funktionen zum Warten auf die IP
 wait_for_ip() {
   local ip=$1
   local timeout=${2:-60}
@@ -38,6 +38,12 @@ echo "========================================"
 echo " Schritt 2: sysupgrade nach FritzBox laden"
 echo "========================================"
 python3 scp_upload.py openwrt-24.10.0-ipq40xx-generic-avm_fritzbox-7530-squashfs-sysupgrade.bin
+
+# Warte nach dem RAM-Boot 192.168.178.70
+echo "========================================"
+echo " Warte auf die IP 192.168.178.70 nach dem RAM-Boot..."
+echo "========================================"
+wait_for_ip 192.168.178.70 60
 
 # Schritt 3: Flash-Vorgang starten
 echo "========================================"
