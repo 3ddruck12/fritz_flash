@@ -2,41 +2,73 @@
 
 # Variablen
 ROUTER_IP="192.168.1.1"  # IP-Adresse des Routers
-USERNAME="root"           # SSH-Benutzername
-PASSWORD="your_password"  # SSH-Passwort
+FTP_USER="adam2"          # FTP-Benutzername
+FTP_PASS="adam2"          # FTP-Passwort
 FIRMWARE_PATH="./firmware/openwrt-24.10.0-ipq40xx-generic-avm_fritzbox-7530-squashfs-sysupgrade.bin"
+EVA_PATH="./eva/eva-fritz7530-recovery.img"
+U_BOOT_PATH="./uboot/uboot-fritz7530.bin"
 REMOTE_PATH="/tmp/firmware.bin"  # Zielpfad auf dem Router
-PYTHON_SCP_SCRIPT="./scripts/scp_upload.py"  # Pfad zum SCP-Upload-Skript
 
-# Überprüfen, ob Python 3 installiert ist
-if ! command -v python3 &> /dev/null
-then
-    echo "Python 3 ist nicht installiert. Installieren Sie es und versuchen Sie es erneut."
+# Vorbereitungen
+echo "Starte den Flash-Vorgang für die FRITZ!Box 7530..."
+echo "Stellen Sie sicher, dass der Router mit dem PC über LAN verbunden ist und Ihre IP-Adresse auf 192.168.178.x gesetzt ist."
+
+# Verbindung zum Router prüfen (Recovery-Modus)
+ping -c 4 $ROUTER_IP
+if [ $? -ne 0 ]; then
+    echo "Fehler: Router nicht erreichbar. Überprüfen Sie die Verbindung und IP-Adresse."
     exit 1
 fi
 
-# Überprüfen, ob das Python-Skript existiert
-if [ ! -f $PYTHON_SCP_SCRIPT ]; then
-    echo "Fehler: SCP Upload Python-Skript nicht gefunden!"
+# Verbindung zu FTP herstellen und EVA-Image übertragen
+echo "Übertrage das EVA-Image auf den Router..."
+ftp -inv $ROUTER_IP <<EOF
+user $FTP_USER $FTP_PASS
+binary
+put $EVA_PATH 0x88000000
+quit
+EOF
+
+if [ $? -ne 0 ]; then
+    echo "Fehler: EVA-Image konnte nicht auf den Router übertragen werden."
     exit 1
 fi
 
-# SCP-Upload der Firmware
-echo "Übertrage die Firmware auf den Router..."
-python3 $PYTHON_SCP_SCRIPT $ROUTER_IP $USERNAME $PASSWORD $FIRMWARE_PATH $REMOTE_PATH
+# U-Boot-Image hochladen
+echo "Übertrage den U-Boot-Bootloader auf den Router..."
+ftp -inv $ROUTER_IP <<EOF
+user $FTP_USER $FTP_PASS
+binary
+put $U_BOOT_PATH 0x80000000
+quit
+EOF
+
+if [ $? -ne 0 ]; then
+    echo "Fehler: U-Boot konnte nicht auf den Router übertragen werden."
+    exit 1
+fi
+
+# Firmware-Upload
+echo "Übertrage die OpenWrt-Firmware auf den Router..."
+ftp -inv $ROUTER_IP <<EOF
+user $FTP_USER $FTP_PASS
+binary
+put $FIRMWARE_PATH $REMOTE_PATH
+quit
+EOF
+
 if [ $? -ne 0 ]; then
     echo "Fehler: Firmware konnte nicht auf den Router übertragen werden."
     exit 1
 fi
 
-echo "Firmware erfolgreich übertragen. Fortfahren mit dem Flashen..."
-
-# Flashen der Firmware (Beispiel)
+# Flashen der Firmware über SSH
+echo "Starte den Flash-Vorgang auf der FRITZ!Box 7530..."
 ssh root@$ROUTER_IP "sysupgrade -v $REMOTE_PATH"
 if [ $? -ne 0 ]; then
     echo "Fehler: Flash-Vorgang gescheitert."
     exit 1
 fi
 
-echo "Der Flash-Vorgang wurde erfolgreich abgeschlossen."
+echo "Der Flash-Vorgang wurde erfolgreich abgeschlossen. Router wird jetzt neu gestartet."
 
