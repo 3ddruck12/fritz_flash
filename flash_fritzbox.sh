@@ -29,9 +29,9 @@ python3 eva_ramboot.py --offset 0x85000000 192.168.178.1 uboot-fritz7530.bin
 
 # Warte auf U-Boot (192.168.1.1)
 echo "========================================"
-echo " Warte auf U-Boot IP 192.168.1.1..."
+echo " Warte auf U-Boot IP 192.168.178.2..."
 echo "========================================"
-wait_for_ip 192.168.1.1 60
+wait_for_ip 192.168.178.2 60
 
 # Schritt 2: sysupgrade-Datei hochladen
 echo "========================================"
