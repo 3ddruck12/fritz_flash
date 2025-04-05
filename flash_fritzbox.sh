@@ -11,12 +11,28 @@ REMOTE_PATH="/tmp/firmware.bin"  # Zielpfad auf dem Router
 
 # Vorbereitungen
 echo "Starte den Flash-Vorgang für die FRITZ!Box 7530..."
-echo "Stellen Sie sicher, dass der Router mit dem PC über LAN verbunden ist und Ihre IP-Adresse auf 192.168.178.x gesetzt ist."
+echo "Stellen Sie sicher, dass der Router im Recovery-Modus ist."
 
 # Verbindung zum Router prüfen (Recovery-Modus)
 ping -c 4 $ROUTER_IP
 if [ $? -ne 0 ]; then
     echo "Fehler: Router nicht erreichbar. Überprüfen Sie die Verbindung und IP-Adresse."
+    exit 1
+fi
+
+# Überprüfen, ob die benötigten Dateien existieren
+if [ ! -f "$EVA_PATH" ]; then
+    echo "Fehler: EVA-Image wurde nicht gefunden!"
+    exit 1
+fi
+
+if [ ! -f "$U_BOOT_PATH" ]; then
+    echo "Fehler: U-Boot-Datei wurde nicht gefunden!"
+    exit 1
+fi
+
+if [ ! -f "$FIRMWARE_PATH" ]; then
+    echo "Fehler: Firmware-Datei wurde nicht gefunden!"
     exit 1
 fi
 
@@ -29,13 +45,8 @@ put $EVA_PATH 0x88000000
 quit
 EOF
 
-if [ $? -ne 0 ]; then
-    echo "Fehler: EVA-Image konnte nicht auf den Router übertragen werden."
-    exit 1
-fi
-
-# U-Boot-Image hochladen
-echo "Übertrage den U-Boot-Bootloader auf den Router..."
+# Übertragen der U-Boot-Datei
+echo "Übertrage die U-Boot-Datei auf den Router..."
 ftp -inv $ROUTER_IP <<EOF
 user $FTP_USER $FTP_PASS
 binary
@@ -43,12 +54,7 @@ put $U_BOOT_PATH 0x80000000
 quit
 EOF
 
-if [ $? -ne 0 ]; then
-    echo "Fehler: U-Boot konnte nicht auf den Router übertragen werden."
-    exit 1
-fi
-
-# Firmware-Upload
+# Übertragen der Firmware
 echo "Übertrage die OpenWrt-Firmware auf den Router..."
 ftp -inv $ROUTER_IP <<EOF
 user $FTP_USER $FTP_PASS
@@ -57,11 +63,6 @@ put $FIRMWARE_PATH $REMOTE_PATH
 quit
 EOF
 
-if [ $? -ne 0 ]; then
-    echo "Fehler: Firmware konnte nicht auf den Router übertragen werden."
-    exit 1
-fi
-
 # Flashen der Firmware über SSH
 echo "Starte den Flash-Vorgang auf der FRITZ!Box 7530..."
 ssh root@$ROUTER_IP "sysupgrade -v $REMOTE_PATH"
@@ -69,6 +70,9 @@ if [ $? -ne 0 ]; then
     echo "Fehler: Flash-Vorgang gescheitert."
     exit 1
 fi
+
+echo "Der Flash-Vorgang wurde erfolgreich abgeschlossen. Router wird jetzt neu gestartet."
+
 
 echo "Der Flash-Vorgang wurde erfolgreich abgeschlossen. Router wird jetzt neu gestartet."
 
